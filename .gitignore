@@ -1,0 +1,6 @@
+__pycache__/
+.idea/
+runs/
+pretrained/*
+train_nsml.py
+requirements.txt
