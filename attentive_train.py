@@ -19,6 +19,7 @@ import resnet as RN
 import pyramidnet as PYRM
 import utils
 import numpy as np
+from attention_util import AttentiveInputTransform, AttentiveTargetTransform
 
 import warnings
 
@@ -32,37 +33,52 @@ best_err1 = 100
 best_err5 = 100
 
 net_type = 'resnet'
-workers = 4 # number of data loading workers
-epochs = 90 # number of total epochs to run
+workers = 4  # number of data loading workers
+epochs = 90  # number of total epochs to run
 batch_size = 128
 lr = 0.1
 momentum = 0.9
 weight_decay = 1e-4
-print_freq = 1 # print frequency
+print_freq = 1  # print frequency
 depth = 32
-bottleneck = True # to use basicblock for CIFAR datasets
-dataset = 'imagenet' # [cifar10, cifar100, imagenet]
+bottleneck = True  # to use basicblock for CIFAR datasets
+dataset = 'imagenet'  # [cifar10, cifar100, imagenet]
 verbose = True
-alpha = 300 # number of new channel increases per depth
-expname = 'no_pretrained' # name of experiment
-beta = 0 # hyperparameter beta
-cutmix_prob = 0 # cutmix probability
+alpha = 300  # number of new channel increases per depth
+expname = 'no_pretrained_cutmix'  # name of experiment
+beta = 0  # hyperparameter beta
+cutmix_prob = 0  # cutmix probability
+train_cutmix = True
+k = 6
+grid_count = 64
+pretrained = 'path/to/pretrained/folder'
 
 best_err1 = 100
 best_err5 = 100
 
+
 def main():
-    global best_err1, best_err5
+    global best_err1, best_err5, grid_count
 
     if dataset.startswith('cifar'):
+        grid_count = 64
         normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                          std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
 
+        ori_dataset = datasets.CIFAR10 if dataset == 'cifar10' else datasets.CIFAR100
+        placeholder = {}
+
         transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
+            transforms.RandomCrop(32, padding=4, pad_if_needed=True),
             transforms.RandomHorizontalFlip(),
+            AttentiveInputTransform('cifar', ori_dataset(
+                './data', train=True, download=True), placeholder, k=k),
             transforms.ToTensor(),
             normalize,
+        ])
+
+        transform_train_target = transforms.Compose([
+            AttentiveTargetTransform(placeholder),
         ])
 
         transform_test = transforms.Compose([
@@ -72,24 +88,24 @@ def main():
 
         if dataset == 'cifar100':
             train_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR100('../data', train=True, download=True, transform=transform_train),
-                batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
+                datasets.CIFAR100('./data', train=True, download=True, transform=transform_train, target_transform=transform_train_target), batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
             val_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR100('../data', train=False, transform=transform_test),
+                datasets.CIFAR100('./data', train=False,
+                                  transform=transform_test),
                 batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
             numberofclass = 100
         elif dataset == 'cifar10':
             train_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR10('../data', train=True, download=True, transform=transform_train),
-                batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
+                datasets.CIFAR10('./data', train=True, download=True, transform=transform_train, target_transform=transform_train_target), batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
             val_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR10('../data', train=False, transform=transform_test),
+                datasets.CIFAR10('./data', train=False,
+                                 transform=transform_test),
                 batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
             numberofclass = 10
         else:
             raise Exception('unknown dataset: {}'.format(dataset))
-
     elif dataset == 'imagenet':
+        grid_count = 49
         traindir = os.path.join('/home/data/ILSVRC/train')
         valdir = os.path.join('/home/data/ILSVRC/val')
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -117,7 +133,8 @@ def main():
         train_sampler = None
 
         train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=(train_sampler is None),
+            train_dataset, batch_size=batch_size, shuffle=(
+                train_sampler is None),
             num_workers=workers, pin_memory=True, sampler=train_sampler)
 
         val_loader = torch.utils.data.DataLoader(
@@ -130,13 +147,13 @@ def main():
             batch_size=batch_size, shuffle=False,
             num_workers=workers, pin_memory=True)
         numberofclass = 1000
-
     else:
         raise Exception('unknown dataset: {}'.format(dataset))
 
     print("=> creating model '{}'".format(net_type))
     if net_type == 'resnet':
-        model = RN.ResNet(dataset, depth, numberofclass, bottleneck)  # for ResNet
+        model = RN.ResNet(dataset, depth, numberofclass,
+                          bottleneck)  # for ResNet
     elif net_type == 'pyramidnet':
         model = PYRM.PyramidNet(dataset, depth, alpha, numberofclass,
                                 bottleneck)
@@ -145,8 +162,13 @@ def main():
 
     model = torch.nn.DataParallel(model).cuda()
 
+    # else:
+    #     raise Exception(
+    #         "=> no checkpoint found at '{}'".format(pretrained))
+
     print(model)
-    print('the number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
+    print('the number of model parameters: {}'.format(
+        sum([p.data.nelement() for p in model.parameters()])))
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
@@ -155,9 +177,22 @@ def main():
                                 momentum=momentum,
                                 weight_decay=weight_decay, nesterov=True)
 
+    start_epoch = 0
+    if os.path.isfile(pretrained):
+        print("=> loading checkpoint '{}'".format(pretrained))
+        checkpoint = torch.load(pretrained)
+        model.load_state_dict(checkpoint['state_dict'])
+        print("=> loaded checkpoint '{}'".format(pretrained))
+
+        start_epoch = checkpoint['epoch']+1
+        net_type = checkpoint['net_type']
+        best_err1 = checkpoint['best_err1']
+        best_err5 = checkpoint['best_err5']
+        optimizer = optimizer.load_state_dict(checkpoint['optimizer'])
+
     cudnn.benchmark = True
 
-    for epoch in range(0, epochs):
+    for epoch in range(start_epoch, epochs):
 
         adjust_learning_rate(optimizer, epoch)
 
@@ -204,28 +239,22 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         input = input.cuda()
         target = target.cuda()
-
-        r = np.random.rand(1)
-        if beta > 0 and r < cutmix_prob:
+        if train_cutmix:
             # generate mixed sample
-            lam = np.random.beta(beta, beta)
-            rand_index = torch.randperm(input.size()[0]).cuda()
-            target_a = target
-            target_b = target[rand_index]
-            bbx1, bby1, bbx2, bby2 = rand_bbox(input.size(), lam)
-            input[:, :, bbx1:bbx2, bby1:bby2] = input[rand_index, :, bbx1:bbx2, bby1:bby2]
-            # adjust lambda to exactly match pixel ratio
-            lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (input.size()[-1] * input.size()[-2]))
-            # compute output
+            target_a, target_b = target[:, 0], target[:, 1]
             output = model(input)
-            loss = criterion(output, target_a) * lam + criterion(output, target_b) * (1. - lam)
+            lam = k/grid_count
+            target_a_loss = criterion(output, target_a) * lam
+            target_b_loss = criterion(output, target_b) * (1-lam)
+            loss = target_a_loss + target_b_loss
         else:
             # compute output
             output = model(input)
-            loss = criterion(output, target)
+            loss = criterion(output, target[:, 0])
 
         # measure accuracy and record loss
-        err1, err5 = accuracy(output.data, target, topk=(1, 5))
+        err1, err5 = accuracy(
+            output.detach(), target[:, 0].detach(), topk=(1, 5))
 
         losses.update(loss.item(), input.size(0))
         top1.update(err1.item(), input.size(0))
@@ -248,32 +277,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
                   'Top 5-err {top5.val:.4f} ({top5.avg:.4f})'.format(
-                epoch, epochs, i, len(train_loader), LR=current_LR, batch_time=batch_time,
-                data_time=data_time, loss=losses, top1=top1, top5=top5))
+                      epoch, epochs, i, len(train_loader), LR=current_LR, batch_time=batch_time,
+                      data_time=data_time, loss=losses, top1=top1, top5=top5))
 
     print('* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Train Loss {loss.avg:.3f}'.format(
         epoch, epochs, top1=top1, top5=top5, loss=losses))
 
     return losses.avg
-
-
-def rand_bbox(size, lam):
-    W = size[2]
-    H = size[3]
-    cut_rat = np.sqrt(1. - lam)
-    cut_w = np.int(W * cut_rat)
-    cut_h = np.int(H * cut_rat)
-
-    # uniform
-    cx = np.random.randint(W)
-    cy = np.random.randint(H)
-
-    bbx1 = np.clip(cx - cut_w // 2, 0, W)
-    bby1 = np.clip(cy - cut_h // 2, 0, H)
-    bbx2 = np.clip(cx + cut_w // 2, 0, W)
-    bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-    return bbx1, bby1, bbx2, bby2
 
 
 def validate(val_loader, model, criterion, epoch):
@@ -293,7 +303,7 @@ def validate(val_loader, model, criterion, epoch):
         loss = criterion(output, target)
 
         # measure accuracy and record loss
-        err1, err5 = accuracy(output.data, target, topk=(1, 5))
+        err1, err5 = accuracy(output.detach(), target.detach(), topk=(1, 5))
 
         losses.update(loss.item(), input.size(0))
 
@@ -310,8 +320,8 @@ def validate(val_loader, model, criterion, epoch):
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                   'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
                   'Top 5-err {top5.val:.4f} ({top5.avg:.4f})'.format(
-                epoch, epochs, i, len(val_loader), batch_time=batch_time, loss=losses,
-                top1=top1, top5=top5))
+                      epoch, epochs, i, len(val_loader), batch_time=batch_time, loss=losses,
+                      top1=top1, top5=top5))
 
     print('* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Test Loss {loss.avg:.3f}'.format(
         epoch, epochs, top1=top1, top5=top5, loss=losses))
@@ -325,7 +335,8 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     filename = directory + filename
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'runs/%s/' % (expname) + 'model_best.pth.tar')
+        shutil.copyfile(filename, 'runs/%s/' %
+                        (expname) + 'model_best.pth.tar')
 
 
 class AverageMeter(object):
@@ -350,7 +361,8 @@ class AverageMeter(object):
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     if dataset.startswith('cifar'):
-        lr = lr * (0.1 ** (epoch // (epochs * 0.5))) * (0.1 ** (epoch // (epochs * 0.75)))
+        lr = lr * (0.1 ** (epoch // (epochs * 0.5))) * \
+            (0.1 ** (epoch // (epochs * 0.75)))
     elif dataset == ('imagenet'):
         if epochs == 300:
             lr = lr * (0.1 ** (epoch // 75))
