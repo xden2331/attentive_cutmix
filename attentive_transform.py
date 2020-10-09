@@ -35,8 +35,8 @@ class AttentiveInputTransform(object):
         rand_index = np.random.randint(0, len(self.dataset))
         rand_img, rand_target = self.dataset[rand_index]
         self.placeholder['rand_target'] = rand_target
-        attentive_regions = _get_attentive_regions(image)
-        rand_img = _replace_attentive_regions(rand_img, image, attentive_regions)
+        attentive_regions = self._get_attentive_regions(image)
+        rand_img = self._replace_attentive_regions(rand_img, image, attentive_regions)
         return rand_img
     
     def _replace_attentive_regions(self, rand_img, image, attentive_regions):
@@ -47,7 +47,7 @@ class AttentiveInputTransform(object):
         """
         np_rand_img, np_img = np.array(rand_img), np.array(image)
         for attentive_region in attentive_regions:
-            _replace_attentive_region(np_rand_img, np_img, attentive_region)
+            self._replace_attentive_region(np_rand_img, np_img, attentive_region)
         return Image.fromarray(np_rand_img)
 
     def _replace_attentive_region(self, np_rand_img, np_img, attentive_region):
@@ -69,4 +69,4 @@ class AttentiveInputTransform(object):
         x = TF.to_tensor(image).unsqueeze_(0)
         output = self.model(x)
         last_feature_map = output[0][-1].detach().cpu().numpy()
-        return _top_k(last_feature_map)
+        return self._top_k(last_feature_map)

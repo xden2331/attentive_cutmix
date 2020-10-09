@@ -51,14 +51,15 @@ cutmix_prob = 0  # cutmix probability
 train_cutmix = True
 k = 6
 grid_count = 64
-pretrained = 'path/to/pretrained/folder'
+root = 'drive/My Drive/NLP/Attentive CutMix'
+pretrained_path = root + '/runs/' + expname + '/'
 
 best_err1 = 100
 best_err5 = 100
 
 
 def main():
-    global best_err1, best_err5, grid_count, net_type
+    global best_err1, best_err5, grid_count, net_type, lr
 
     if dataset.startswith('cifar'):
         grid_count = 64
@@ -166,7 +167,6 @@ def main():
     #     raise Exception(
     #         "=> no checkpoint found at '{}'".format(pretrained))
 
-    print(model)
     print('the number of model parameters: {}'.format(
         sum([p.data.nelement() for p in model.parameters()])))
 
@@ -178,6 +178,7 @@ def main():
                                 weight_decay=weight_decay, nesterov=True)
 
     start_epoch = 0
+    pretrained = pretrained_path + 'checkpoint.pth.tar'
     if os.path.isfile(pretrained):
         print("=> loading checkpoint '{}'".format(pretrained))
         checkpoint = torch.load(pretrained)
@@ -329,14 +330,14 @@ def validate(val_loader, model, criterion, epoch):
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    directory = "runs/%s/" % (expname)
+    # directory = "runs/%s/" % (expname)
+    directory = pretrained_path
     if not os.path.exists(directory):
         os.makedirs(directory)
     filename = directory + filename
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'runs/%s/' %
-                        (expname) + 'model_best.pth.tar')
+        shutil.copyfile(filename, directory + 'model_best.pth.tar')
 
 
 class AverageMeter(object):
@@ -359,6 +360,7 @@ class AverageMeter(object):
 
 
 def adjust_learning_rate(optimizer, epoch):
+    global lr
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     if dataset.startswith('cifar'):
         lr = lr * (0.1 ** (epoch // (epochs * 0.5))) * \
