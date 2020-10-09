@@ -271,18 +271,23 @@ def train(train_loader, model, criterion, optimizer, epoch):
         end = time.time()
 
         if i % print_freq == 0 and verbose == True:
-            print('Epoch: [{0}/{1}][{2}/{3}]\t'
-                  'LR: {LR:.6f}\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
-                  'Top 5-err {top5.val:.4f} ({top5.avg:.4f})'.format(
-                      epoch, epochs, i, len(train_loader), LR=current_LR, batch_time=batch_time,
-                      data_time=data_time, loss=losses, top1=top1, top5=top5))
+            log = ('Epoch: [{0}/{1}][{2}/{3}]\t'
+                   'LR: {LR:.6f}\t'
+                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                   'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
+                   'Top 5-err {top5.val:.4f} ({top5.avg:.4f})').format(
+                epoch, epochs, i, len(train_loader), LR=current_LR, batch_time=batch_time,
+                data_time=data_time, loss=losses, top1=top1, top5=top5)
+            print(log)
 
-    print('* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Train Loss {loss.avg:.3f}'.format(
-        epoch, epochs, top1=top1, top5=top5, loss=losses))
+    epoch_log = '* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Train Loss {loss.avg:.3f}'.format(
+        epoch, epochs, top1=top1, top5=top5, loss=losses)
+    print(epoch_log)
+
+    with open(pretrained_path + 'train_log.tsv', 'a') as log_file:
+        log_file.write(epoch_log + '\n')
 
     return losses.avg
 
@@ -316,16 +321,21 @@ def validate(val_loader, model, criterion, epoch):
         end = time.time()
 
         if i % print_freq == 0 and verbose == True:
-            print('Test (on val set): [{0}/{1}][{2}/{3}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
-                  'Top 5-err {top5.val:.4f} ({top5.avg:.4f})'.format(
-                      epoch, epochs, i, len(val_loader), batch_time=batch_time, loss=losses,
-                      top1=top1, top5=top5))
+            log = ('Test (on val set): [{0}/{1}][{2}/{3}]\t'
+                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                   'Top 1-err {top1.val:.4f} ({top1.avg:.4f})\t'
+                   'Top 5-err {top5.val:.4f} ({top5.avg:.4f})').format(
+                epoch, epochs, i, len(val_loader), batch_time=batch_time, loss=losses,
+                top1=top1, top5=top5)
+            print(log)
 
-    print('* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Test Loss {loss.avg:.3f}'.format(
-        epoch, epochs, top1=top1, top5=top5, loss=losses))
+    val_log = '* Epoch: [{0}/{1}]\t Top 1-err {top1.avg:.3f}  Top 5-err {top5.avg:.3f}\t Test Loss {loss.avg:.3f}'.format(
+        epoch, epochs, top1=top1, top5=top5, loss=losses)
+    print(val_log)
+
+    with open(pretrained_path + 'val_log.tsv', 'a') as log_file:
+        log_file.write(val_log + '\n')
     return top1.avg, top5.avg, losses.avg
 
 
