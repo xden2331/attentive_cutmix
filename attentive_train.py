@@ -19,7 +19,7 @@ import resnet as RN
 import pyramidnet as PYRM
 import utils
 import numpy as np
-from attention_util import AttentiveInputTransform, AttentiveTargetTransform
+from attentive_transform import AttentiveInputTransform, AttentiveTargetTransform
 
 import warnings
 
@@ -34,15 +34,15 @@ best_err5 = 100
 
 net_type = 'resnet'
 workers = 4  # number of data loading workers
-epochs = 90  # number of total epochs to run
-batch_size = 128
-lr = 0.1
+epochs = 80  # number of total epochs to run
+batch_size = 32
+lr = 1e-3
 momentum = 0.9
-weight_decay = 1e-4
+weight_decay = 1e-5
 print_freq = 1  # print frequency
-depth = 32
+depth = 50
 bottleneck = True  # to use basicblock for CIFAR datasets
-dataset = 'imagenet'  # [cifar10, cifar100, imagenet]
+dataset = 'cifar10'  # [cifar10, cifar100, imagenet]
 verbose = True
 alpha = 300  # number of new channel increases per depth
 expname = 'no_pretrained_cutmix'  # name of experiment
@@ -58,7 +58,7 @@ best_err5 = 100
 
 
 def main():
-    global best_err1, best_err5, grid_count
+    global best_err1, best_err5, grid_count, net_type
 
     if dataset.startswith('cifar'):
         grid_count = 64
