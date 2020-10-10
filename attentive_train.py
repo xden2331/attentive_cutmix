@@ -40,17 +40,17 @@ lr = 1e-3
 momentum = 0.9
 weight_decay = 1e-5
 print_freq = 1  # print frequency
-depth = 50
+depth = 18
 bottleneck = True  # to use basicblock for CIFAR datasets
 dataset = 'cifar10'  # [cifar10, cifar100, imagenet]
 verbose = True
 alpha = 300  # number of new channel increases per depth
-expname = 'no_pretrained_cutmix'  # name of experiment
 beta = 0  # hyperparameter beta
 cutmix_prob = 0  # cutmix probability
 train_cutmix = True
 k = 6
 grid_count = 64
+expname = 'no_pretrained_cutmix'  # name of experiment
 root = 'drive/My Drive/NLP/Attentive CutMix'
 pretrained_path = root + '/runs/' + expname + '/'
 
@@ -195,7 +195,7 @@ def main():
 
     for epoch in range(start_epoch, epochs):
 
-        adjust_learning_rate(optimizer, epoch)
+        # adjust_learning_rate(optimizer, epoch)
 
         # train for one epoch
         train_loss = train(train_loader, model, criterion, optimizer, epoch)
@@ -286,6 +286,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         epoch, epochs, top1=top1, top5=top5, loss=losses)
     print(epoch_log)
 
+    if not os.path.exists(pretrained_path):
+        os.makedirs(pretrained_path)
     with open(pretrained_path + 'train_log.tsv', 'a') as log_file:
         log_file.write(epoch_log + '\n')
 
@@ -334,6 +336,8 @@ def validate(val_loader, model, criterion, epoch):
         epoch, epochs, top1=top1, top5=top5, loss=losses)
     print(val_log)
 
+    if not os.path.exists(pretrained_path):
+        os.makedirs(pretrained_path)
     with open(pretrained_path + 'val_log.tsv', 'a') as log_file:
         log_file.write(val_log + '\n')
     return top1.avg, top5.avg, losses.avg
