@@ -23,21 +23,23 @@ class AttentiveInputTransform(object):
         self.dataset = dataset
         self.placeholder = placeholder
         self.k = k
-        if dataname == 'imagenet':
-            self.grid_size = 32
-            temp_model = nn.Sequential(*list(model.children())[:-2])
-        else:
-            self.grid_size = 4
-            temp_model = nn.Sequential(*list(model.children())[:-5])
+        self.grid_size = 32
+        temp_model = nn.Sequential(*list(model.children())[:-2])
         self.model = temp_model
     
     def __call__(self, image):
         rand_index = np.random.randint(0, len(self.dataset))
         rand_img, rand_target = self.dataset[rand_index]
         self.placeholder['rand_target'] = rand_target
+
+        ori_size = image.size
+
+        image = image.resize((224, 224))
+        rand_image = rand_img.resize((224, 224))
+
         attentive_regions = self._get_attentive_regions(image)
         rand_img = self._replace_attentive_regions(rand_img, image, attentive_regions)
-        return rand_img
+        return rand_img.resize(ori_size)
     
     def _replace_attentive_regions(self, rand_img, image, attentive_regions):
         """
