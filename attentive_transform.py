@@ -35,7 +35,7 @@ class AttentiveInputTransform(object):
         ori_size = image.size
 
         image = image.resize((224, 224))
-        rand_image = rand_img.resize((224, 224))
+        rand_img = rand_img.resize((224, 224))
 
         attentive_regions = self._get_attentive_regions(image)
         rand_img = self._replace_attentive_regions(rand_img, image, attentive_regions)
