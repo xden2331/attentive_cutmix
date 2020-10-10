@@ -39,7 +39,7 @@ batch_size = 32
 lr = 1e-3
 momentum = 0.9
 weight_decay = 1e-5
-print_freq = 100  # print frequency
+print_freq = 1  # print frequency
 depth = 18
 bottleneck = True  # to use basicblock for CIFAR datasets
 dataset = 'cifar10'  # [cifar10, cifar100, imagenet]
@@ -50,7 +50,7 @@ cutmix_prob = 0  # cutmix probability
 train_cutmix = True
 k = 6
 grid_count = 49
-expname = 'no_pretrained_cutmix'  # name of experiment
+expname = 'no_pretrained_cutmix_resnet-18'  # name of experiment
 root = 'drive/My Drive/NLP/Attentive CutMix'
 pretrained_path = root + '/runs/' + expname + '/'
 
@@ -62,7 +62,6 @@ def main():
     global best_err1, best_err5, grid_count, net_type, lr
 
     if dataset.startswith('cifar'):
-        grid_count = 64
         normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
                                          std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
 
@@ -106,7 +105,6 @@ def main():
         else:
             raise Exception('unknown dataset: {}'.format(dataset))
     elif dataset == 'imagenet':
-        grid_count = 49
         traindir = os.path.join('/home/data/ILSVRC/train')
         valdir = os.path.join('/home/data/ILSVRC/val')
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -172,12 +170,10 @@ def main():
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda()
 
-    optimizer = torch.optim.SGD(model.parameters(), lr,
-                                momentum=momentum,
-                                weight_decay=weight_decay, nesterov=True)
-
     start_epoch = 0
     pretrained = pretrained_path + 'checkpoint.pth.tar'
+    model = torch.nn.DataParallel(model).cuda()
+    
     if os.path.isfile(pretrained):
         print("=> loading checkpoint '{}'".format(pretrained))
         checkpoint = torch.load(pretrained)
@@ -185,12 +181,14 @@ def main():
         print("=> loaded checkpoint '{}'".format(pretrained))
 
         start_epoch = checkpoint['epoch']+1
-        net_type = checkpoint['net_type']
+        net_type = checkpoint['arch']
         best_err1 = checkpoint['best_err1']
         best_err5 = checkpoint['best_err5']
-        optimizer = optimizer.load_state_dict(checkpoint['optimizer'])
 
-    model = torch.nn.DataParallel(model).cuda()
+
+    optimizer = torch.optim.SGD(model.parameters(), lr,
+                                momentum=momentum,
+                                weight_decay=weight_decay, nesterov=True)
     cudnn.benchmark = True
 
     for epoch in range(start_epoch, epochs):
@@ -216,7 +214,6 @@ def main():
             'state_dict': model.state_dict(),
             'best_err1': best_err1,
             'best_err5': best_err5,
-            'optimizer': optimizer.state_dict(),
         }, is_best)
 
     print('Best accuracy (top-1 and 5 error):', best_err1, best_err5)
