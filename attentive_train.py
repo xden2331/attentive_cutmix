@@ -33,7 +33,7 @@ best_err1 = 100
 best_err5 = 100
 
 net_type = 'resnet'
-workers = 4  # number of data loading workers
+workers = 0  # number of data loading workers
 epochs = 80  # number of total epochs to run
 batch_size = 32
 lr = 1e-3
@@ -89,7 +89,7 @@ def main():
 
         if dataset == 'cifar100':
             train_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR100('./data', train=True, download=True, transform=transform_train, target_transform=transform_train_target), batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
+                datasets.CIFAR100('./data', train=True, download=True, transform=transform_train, target_transform=transform_train_target), batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=False)
             val_loader = torch.utils.data.DataLoader(
                 datasets.CIFAR100('./data', train=False,
                                   transform=transform_test),
@@ -97,7 +97,7 @@ def main():
             numberofclass = 100
         elif dataset == 'cifar10':
             train_loader = torch.utils.data.DataLoader(
-                datasets.CIFAR10('./data', train=True, download=True, transform=transform_train, target_transform=transform_train_target), batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
+                datasets.CIFAR10('./data', train=True, download=True, transform=transform_train, target_transform=transform_train_target), batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=False)
             val_loader = torch.utils.data.DataLoader(
                 datasets.CIFAR10('./data', train=False,
                                  transform=transform_test),
@@ -161,7 +161,6 @@ def main():
     else:
         raise Exception('unknown network architecture: {}'.format(net_type))
 
-    model = torch.nn.DataParallel(model).cuda()
 
     # else:
     #     raise Exception(
@@ -191,6 +190,7 @@ def main():
         best_err5 = checkpoint['best_err5']
         optimizer = optimizer.load_state_dict(checkpoint['optimizer'])
 
+    model = torch.nn.DataParallel(model).cuda()
     cudnn.benchmark = True
 
     for epoch in range(start_epoch, epochs):

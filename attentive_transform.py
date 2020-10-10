@@ -25,7 +25,7 @@ class AttentiveInputTransform(object):
         self.k = k
         self.grid_size = 32
         temp_model = nn.Sequential(*list(model.children())[:-2])
-        self.model = temp_model
+        self.model = temp_model.cuda()
     
     def __call__(self, image):
         rand_index = np.random.randint(0, len(self.dataset))
@@ -68,7 +68,7 @@ class AttentiveInputTransform(object):
         CIFAR return top k from 8x8
         ImageNet return top k from 7x7
         """
-        x = TF.to_tensor(image).unsqueeze_(0)
+        x = TF.to_tensor(image).unsqueeze_(0).cuda()
         output = self.model(x)
         last_feature_map = output[0][-1].detach().cpu().numpy()
         return self._top_k(last_feature_map)
