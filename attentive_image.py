@@ -17,10 +17,10 @@ def select_random_image(i):
     rand_index = np.random.randint(0, len(img_paths))
     while rand_index == i:
         rand_index = np.random.randint(0, len(img_paths))
-    rand_img = Image.open(img_paths[rand_index])
+    rand_img = Image.open(root+img_paths[rand_index])
     return rand_img.resize((224, 224))
 
-def top_k(self, a):
+def top_k(a):
     k = 6
     idx = np.argpartition(a.ravel(),a.size-k)[-k:]
     return np.column_stack(np.unravel_index(idx, a.shape))
