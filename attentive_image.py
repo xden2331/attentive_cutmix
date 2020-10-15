@@ -12,13 +12,14 @@ img_paths = os.listdir(root)
 model = models.resnet50(pretrained=True)
 temp_model = nn.Sequential(*list(model.children())[:-2])
 model = temp_model.cuda()
+grid_size = 32
 
 def select_random_image(i):
     rand_index = np.random.randint(0, len(img_paths))
     while rand_index == i:
         rand_index = np.random.randint(0, len(img_paths))
     rand_img = Image.open(root+img_paths[rand_index])
-    return rand_img.resize((224, 224))
+    return rand_img
 
 def top_k(a):
     k = 6
@@ -46,9 +47,9 @@ def replace_attentive_regions(rand_img, image, attentive_regions):
         replace_attentive_region(np_rand_img, np_img, attentive_region)
     return Image.fromarray(np_rand_img)
 
-def replace_attentive_region(self, np_rand_img, np_img, attentive_region):
+def replace_attentive_region(np_rand_img, np_img, attentive_region):
     x, y = attentive_region
-    x1, x2, y1, y2 = self.grid_size * x, self.grid_size * (x+1), self.grid_size * y, self.grid_size * (y+1)
+    x1, x2, y1, y2 = grid_size * x, grid_size * (x+1), grid_size * y, grid_size * (y+1)
     region = np_img[x1:x2, y1: y2]
     np_rand_img[x1:x2, y1:y2] = region
 
@@ -56,8 +57,11 @@ for i, rel_path in enumerate(img_paths):
     img_path = root + rel_path
     img = Image.open(img_path).resize((224, 224))
     rand_img = select_random_image(i)
+    ori_size = rand_img.size
+    rand_img.resize((224, 224))
     attentive_regions = get_attentive_regions(img)
     rand_img = replace_attentive_regions(rand_img, img, attentive_regions)
+    rand_img.resize(ori_size)
     rand_img.save('./mixed_images/{}'.format(rel_path))
 
 
